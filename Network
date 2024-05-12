@@ -1,0 +1,15 @@
+class SubNet(nn.Module):
+
+    def __init__(self):
+        super(SubNet, self).__init__()
+        self.Regress = RegressionModel()
+        self.Cls = ClassificationModel()
+        self.fpn = FeaturePyramid(resnet101())
+
+    def forward(self, x):
+        p3, p4, p5 = self.fpn(x)   #56 28 14
+        out56 = self.Regress(p3)    #56
+        out28 = self.Regress(p4)    #28
+        out14 = self.Regress(p5)    #14
+        reg = [out14, out28, out56]    # 14,28,56
+        return reg
