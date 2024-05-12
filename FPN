@@ -1,0 +1,60 @@
+import math
+import torch
+
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torch.autograd import Variable
+
+class FeaturePyramid(nn.Module):
+    def __init__(self, resnet):
+        super(FeaturePyramid, self).__init__()
+
+        self.resnet = resnet
+        self.out_channels = 256
+
+        # applied in a pyramid
+        self.pyramid_transformation_3 = nn.Conv3d(in_channels=512, out_channels=self.out_channels,
+                                                  kernel_size=(1, 1, 1))  # M3
+        self.pyramid_transformation_4 = nn.Conv3d(in_channels=1024, out_channels=self.out_channels,
+                                                  kernel_size=(1, 1, 1))  # M4
+        self.pyramid_transformation_5 = nn.Conv3d(in_channels=2048, out_channels=self.out_channels,
+                                                  kernel_size=(1, 1, 1))  # M5
+        # applied after upsampling
+        self.upsample_transform_1 = nn.Conv3d(in_channels=256, out_channels=256, kernel_size=(3, 3, 3),
+                                              padding=(1, 1, 1))
+        self.upsample_transform_2 = nn.Conv3d(in_channels=256, out_channels=256, kernel_size=(3, 3, 3),
+                                              padding=(1, 1, 1))
+
+    def _upsample(self, original_feature, scaled_feature, scale_factor=(1,2,2)):
+        height, width = scaled_feature.size()[3:]
+        return F.interpolate(original_feature, scale_factor=scale_factor)[:, :, :, :height, :width]
+
+    def _upsample_temporal(self, original_feature, scale_factor=(2, 1, 1)):
+        return F.interpolate(original_feature, scale_factor=scale_factor)
+
+    def forward(self, x):
+
+        _, resnet_feature_3, resnet_feature_4, resnet_feature_5 = self.resnet(x)
+
+        pyramid_feature_5 = self.pyramid_transformation_5(resnet_feature_5)  # 2048 to 256 size 8*14*14  feature5
+        pyramid_feature_4 = self.pyramid_transformation_4(resnet_feature_4)  # 1024 to 256 size 8*28*28
+        upsampled_feature_5 = self._upsample(pyramid_feature_5, pyramid_feature_4)
+
+        pyramid_feature_4 = self.upsample_transform_1(
+            torch.add(upsampled_feature_5, pyramid_feature_4)  # 256 to 256 size 8*28*28   feature4
+        )
+
+        pyramid_feature_3 = self.pyramid_transformation_3(resnet_feature_3)  # 512 to 256 size 8*56*56
+        upsampled_feature_4 = self._upsample(pyramid_feature_4, pyramid_feature_3)  # 256 to 256 size 8*56*56
+
+        pyramid_feature_3 = self.upsample_transform_2(
+            torch.add(upsampled_feature_4, pyramid_feature_3)  # 8*28*8 up to 8*56*56   feature3
+        )
+        pyramid_feature_3 = self._upsample_temporal(pyramid_feature_3)
+        pyramid_feature_4 = self._upsample_temporal(pyramid_feature_4)
+        pyramid_feature_5 = self._upsample_temporal(pyramid_feature_5)
+
+        return (pyramid_feature_3,
+                pyramid_feature_4,
+                pyramid_feature_5)
