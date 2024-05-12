@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from Backbone import resnet101
 from FPN import FeaturePyramid
 from Detector import RegressionModel
-from Detector import 
+from Detector import ClassificationModel
 class SubNet(nn.Module):
 
     def __init__(self):
