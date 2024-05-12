@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Backbone import resnet101
 from FPN import FeaturePyramid
-from 
+from Detector import RegressionModel
+from Detector import 
 class SubNet(nn.Module):
 
     def __init__(self):
